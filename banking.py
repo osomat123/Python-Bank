@@ -1,7 +1,18 @@
 # Write your code here
 import random
+import sqlite3
 
-accounts = []
+conn = sqlite3.connect("card.s3db")
+cur = conn.cursor()
+
+try:
+    query = 'CREATE TABLE card(id INTEGER PRIMARY KEY AUTOINCREMENT,number TEXT NOT NULL UNIQUE,pin TEXT NOT NULL,balance INTEGER DEFAULT 0);'
+    cur.execute(query)
+    conn.commit()
+    #print(cur.execute('PRAGMA table_info(card);').fetchall())
+
+except sqlite3.OperationalError:
+    pass
 
 class Card:
     digits = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9']
@@ -10,33 +21,40 @@ class Card:
     def __init__(self):
         self.card_number = self.IIN + ''.join(random.choices(self.digits, k=9))
         self.check_sum = self.generate_check_sum()
-        self.card_number = self.card_number + self.check_sum
-        self.check_number()
 
+        self.card_number = self.card_number + self.check_sum
         self.pin = ''.join(random.choices(self.digits, k=4))
         self.balance = 0
 
-    def check_number(self):
-        for account in accounts:
-            if account.card_number == self.card_number:
-                self.__init__()
-                break
+        self.add_to_db()
+
+    def add_to_db(self):
+        query = f'INSERT INTO card(number,pin,balance) VALUES({self.card_number},{self.pin},{self.balance});'
+        try:
+            cur.execute(query)
+            conn.commit()
+        except sqlite3.IntegrityError:
+            self.__init__()
 
     def generate_check_sum(self):
         digits = [int(digit) for digit in list(self.card_number)]
-        for i in range(0,15,2):
+        for i in range(0, 15, 2):
             digit = digits[i] * 2
             if digit > 9:
-                digit -= 9;
+                digit -= 9
             digits[i] = digit
 
         check_sum = (10 - (sum(digits) % 10)) % 10
         return str(check_sum)
 
 def check_details(number, pin):
-    for account in accounts:
-        if (number == account.card_number) and (account.pin == pin):
-            return account
+    query = f'SELECT * FROM card WHERE number = "{number}" AND pin = "{pin}"'
+    cur.execute(query)
+    records = cur.fetchall()
+    conn.commit()
+
+    if len(records) == 1:
+        return [records[0][1], records[0][2], records[0][3]]
 
     return None
 
@@ -50,7 +68,7 @@ def account_page(account):
     print()
 
     if choice == 1:
-        print("Balance:", account.balance)
+        print("Balance:", account[2])
         return account
 
     elif choice == 2:
@@ -79,7 +97,6 @@ def main_page():
         print("Your card PIN")
         print(card.pin)
 
-        accounts.append(card)
         return 1
 
     elif choice == 2:
